@@ -12,7 +12,7 @@ to the game including player characters, enemies and collectable items.
 
 ######Live
 
-Point your browser to christensen-michael.com/Classic_Arcade_Game (not available yet)
+Point your browser to christensen-michael.com/Classic_Arcade_Game
 
 ######Locally
 
