@@ -1,0 +1,607 @@
+/**
+ *Classic Arcade Game Clone project for Udacity's FEND.
+ *I broadly followed Mike Joyce's layout (https://github.com/mikejoyceio/arcade-game) with major code modifications
+ including using a smaller grid, utilizing a heart class, employing a different scoring method, and providing the ability to choose
+ a character at the start screen. Updated the syntax for inserting objects into arrays to make it more compact
+ and removed unecessary steps.
+ */
+// Define some constants to be used throughout the code
+var constants = {
+    // Default canvas text font family
+    FONT: '20pt Aldrich',
+    // Default canvas text font color
+    FONT_COLOR: 'white',
+    // Game element height
+    ENTITY_HEIGHT: 50,
+    // Game element width
+    ENTITY_WIDTH: 50,
+    // Enemy minimum speed
+    MIN_SPEED: 50,
+    // Enemy max speed
+    MAX_SPEED: 400,
+    // Player's start x-position on the canvas
+    PLAYER_START_X: 300,
+    // Player's start y-position on the canvas
+    PLAYER_START_Y: 483,
+    // Player movement distance
+    PLAYER_MOVEMENT: 50,
+    // X position array for game elements 
+    POSITION_X: [0, 101, 202, 303, 404, 505, 606],
+    // Y position array for game elements
+    POSITION_Y: [133, 216, 299, 382],
+    // Left canvas boundary
+    LEFT_BOUNDARY: 0,
+    // Top canvas boundary
+    TOP_BOUNDARY: 83,
+    // Right canvas boundary
+    RIGHT_BOUNDARY: 600,
+    // Bottom canvas boundary
+    BOTTOM_BOUNDARY: 483
+};
+
+// default character
+var theCharacer = 'images/char-boy.png';
+
+/* Need to shift the images since there is a lot of white space 
+in their upper portion.. this helps in keeping the images more closely
+aligned with the game grid. 
+*/
+
+var verticalOffset = -70;
+for (var i = 0; i < constants.POSITION_Y.length; i++) {
+    constants.POSITION_Y[i] = constants.POSITION_Y[i] + verticalOffset;
+}
+
+constants.PLAYER_START_Y = constants.PLAYER_START_Y + verticalOffset;
+constants.TOP_BOUNDARY = constants.TOP_BOUNDARY + verticalOffset;
+constants.BOTTOM_BOUNDARY = constants.BOTTOM_BOUNDARY + verticalOffset;
+
+$(document).ready(function() {
+
+    // Hide the start screen on button click
+    $("#playGame").click(function() {
+        // Hide the start screen
+        $("#startScreen").fadeOut('slow');
+        // update the character
+        player.sprite = theCharacer;
+        $('.entypo-right-thin').css('display', 'none');
+        paused = false;
+    });
+
+    // Hide the game over screen on button click
+    $("#playAgain").click(function() {
+        // Hide the game over screen
+        $("#gameOver").hide();
+        paused = false;
+    });
+
+    // Show the how to play screen on click
+    $("#howToOpen").click(function() {
+        $("#howTo").fadeIn('fast');
+    });
+
+    // Hide the how to play screen on click
+    $("#howToClose").click(function() {
+        $("#howTo").fadeOut('fast');
+    });
+
+    // Character selection
+    $('.image-wrapper').click(
+
+        function() {
+            var imgID = $('img', this).attr('src');
+            console.log(imgID);
+            theCharacer = imgID;
+        });
+
+    $('.image-wrapper').click(
+
+        function() {
+            $('.image-wrapper').removeClass('red-border light-background');
+            $(this).addClass('red-border light-background');
+        });
+
+    // Drop Arrow In
+    $('.entypo-right-thin').animate({
+        top: '+=235px'
+    }, 1000);
+
+});
+
+
+
+/* Enemy Class
+ * Accepts two arguments. The y position on the canvas and the speed. 
+ */
+var Enemy = function(positionY, speed) {
+    // Set the enemy's image
+    this.sprite = 'images/enemy-bug.png';
+    // Set a random x position on the canvas
+    this.x = getRandomInt(-1000, -100);
+    // Set the y position. Determined by the positionY argument
+    this.y = positionY;
+    // Set the enemy's height
+    this.height = constants.ENTITY_HEIGHT;
+    // Set the enemy's width
+    this.width = constants.ENTITY_WIDTH;
+    // Set the enemy's speed. Determined by the speed argument
+    this.speed = speed;
+};
+/* Update the enemy's position on the canvas.
+ * Accepts one argument. The dt speed is multiplied by the dt parameter 
+ * to ensure the game runs at the same speed for all computers
+ */
+Enemy.prototype.update = function(dt) {
+    /* Give the illusion of animation. Multiply the position and speed
+     * of the enemy object by dt (delta time).
+     */
+    this.x = this.x + this.speed * dt;
+    /* If the enemy goes off the right most side of the canvas,
+     * reset it's position at a random negative position off
+     * the left side of the canvas.
+     */
+    if (this.x > canvas.width) {
+        this.x = getRandomInt(-2000, -100);
+    }
+};
+/* Draw the enemy on the canvas.
+ * The enemies y position on the canvas is determined by 
+ * the argument passed into the Enemy constructor function
+ */
+Enemy.prototype.render = function() {
+    ctx.drawImage(Resources.get(this.sprite), this.x, this.y);
+};
+
+/* Enemies Array.
+ * All enemies generated by the Enemies.spawn() method are pushed
+ * into this array.
+ */
+var allEnemies = [];
+
+/* Generate Enemies Class
+ * This class is responsible for spawning enemies and
+ * removing enemies from the canvas.
+ */
+
+function Enemies() {
+    this.spawn = function(number) {
+            for (var i = 0; i < number; i++) {
+                // Call the getRandomInt function and set the speed of the enemy.
+                var speed = getRandomInt(constants.MIN_SPEED, constants.MAX_SPEED);
+                // Call the getRandomInt function and set the players y position on the canvas.
+                var position = getRandomInt(0, 3);
+                // Instatiate a new enemy object and push it into the global allEnemies array
+                allEnemies.push(new Enemy(constants.POSITION_Y[position], speed));
+            }
+        };
+        // Reset Enemies -- clear from the canvas
+    this.reset = function() {
+        allEnemies = [];
+    };
+}
+
+// Instantiate a new Enemies object
+var enemies = new Enemies();
+
+
+/* Gem Class
+ * This class is responsible for generating, clearing
+ * and reseting a collectable gem.
+ * Accepts two arguments, the x and y position of the gem.
+ */
+var Gem = function(positionX, positionY) {
+    // Set a green gem
+    this.sprite = 'images/gem-green.png';
+    // Set the gem's height
+    this.height = constants.ENTITY_HEIGHT;
+    // Set the gem's width
+    this.width = constants.ENTITY_WIDTH;
+    // Set a the x position of the gem
+    this.x = positionX;
+    // Set a the y position of the gem
+    this.y = positionY;
+};
+/* Draw the Gem on the canvas
+ * The gem's x and y positions are determined by random positions
+ * generated by from the the POSITION_X and POSITION_Y contstant arrays.
+ */
+Gem.prototype.render = function() {
+    ctx.drawImage(Resources.get(this.sprite), this.x, this.y);
+};
+/* Clear Gem
+ * Hide the gem by setting its x position to a negative value on the canvas
+ */
+Gem.prototype.clear = function() {
+    this.x = -100;
+    // Play gem collect sound effect
+    // gemCollect.play();
+};
+/* Reset Gem
+ * Reseting the Gem will instantiate a new Gem object and in turn reset
+ * it's color and position on the canvas.
+ */
+Gem.prototype.reset = function() {
+    gem = new Gem();
+};
+
+// Instantiate a new Gem object
+var gem = new Gem();
+
+
+/* Gems Array.
+ * All gems generated by the Gems.spawn() method are pushed
+ * into this array.
+ */
+var allGems = [];
+
+/* Generate Gems Class
+ * This class is responsible for spawning gems and
+ * removing gems from the canvas.
+ */
+
+function Gems() {
+    this.spawn = function(number) {
+            for (var i = 0; i < number; i++) {
+                // Call the getRandomInt function and set the gems x position on the canvas.
+                var positionX = getRandomInt(0, 6);
+                // Call the getRandomInt function and set the gems y position on the canvas.
+                var positionY = getRandomInt(0, 3);
+                // Instatiate a new gem object and push it into the global allGems array
+                allGems.push(new Gem(constants.POSITION_X[positionX], constants.POSITION_Y[positionY]));
+            }
+        };
+        // Reset Gems -- clear from the canvas
+    this.reset = function() {
+        allGems = [];
+    };
+}
+
+// Instantiate a new Gems object
+var gems = new Gems();
+
+/* Heart Class
+ * This class is responsible for generating, clearing
+ * and reseting a collectable heart which gives you a life.
+ * Accepts two arguments, the x and y position of the heart.
+ */
+var Heart = function(positionX, positionY) {
+    // Heart image
+    this.sprite = 'images/Heart.png';
+    // Set the heart's height
+    this.height = constants.ENTITY_HEIGHT;
+    // Set the heart's width
+    this.width = constants.ENTITY_WIDTH;
+    // Set a the x position of the heart
+    this.x = positionX;
+    // Set a the y position of the heart
+    this.y = positionY;
+};
+/* Draw the Heart on the canvas
+ * The heart's x and y positions are determined by random positions
+ * generated by from the the POSITION_X and POSITION_Y contstant arrays.
+ */
+Heart.prototype.render = function() {
+    ctx.drawImage(Resources.get(this.sprite), this.x, this.y);
+};
+/* Clear Heart
+ * Hide the heart by setting its x position to a negative value on the canvas
+ */
+Heart.prototype.clear = function() {
+    this.x = -100;
+};
+/* Reset Heart
+ * Reseting the Heart will instantiate a new Heart object and in turn reset
+ * it's position on the canvas.
+ */
+Heart.prototype.reset = function() {
+    heart = new Heart();
+};
+
+// Instantiate a new Heart object
+var heart = new Heart();
+
+/* Hearts Array.
+ * All hearts generated by the Hearts.spawn() method are pushed
+ * into this array.
+ */
+var allHearts = [];
+
+/* Generate Hearts Class
+ * This class is responsible for spawning hearts and
+ * removing hearts from the canvas.
+ */
+
+function Hearts() {
+    this.spawn = function(number) {
+            for (var i = 0; i < number; i++) {
+                // Call the getRandomInt function and set the gems x position on the canvas.
+                var positionX = getRandomInt(0, 6);
+                // Call the getRandomInt function and set the gems y position on the canvas.
+                var positionY = getRandomInt(0, 3);
+                // Instatiate a new gem object and push it into the global allHearts array
+                allHearts.push(new Heart(constants.POSITION_X[positionX], constants.POSITION_Y[positionY]));
+            }
+        };
+        // Reset Hearts -- clear from the canvas
+    this.reset = function() {
+        allHearts = [];
+    };
+}
+
+// Instantiate a new Hearts object
+var hearts = new Hearts();
+
+/* Player Class
+ * This class is responsible for rendering the player, updating the 
+ * player's position on the canvas and updating the player's lives. 
+ */
+var Player = function() {
+    // Set the player's image
+    this.sprite = theCharacer;
+    // Set the player's x position on the canvas
+    this.x = constants.PLAYER_START_X;
+    // Set the player's y position on the canvas
+    this.y = constants.PLAYER_START_Y;
+    // Set the player's height
+    this.height = constants.ENTITY_HEIGHT;
+    // Set the player's width
+    this.width = constants.ENTITY_WIDTH;
+    /* Set the player's default lives. 
+     * The player starts the game with 3 lives
+     */
+    this.lives = 3;
+};
+// Update player position on the canvas
+Player.prototype.update = function() {
+    this.xNow = this.x;
+    this.yNow = this.y;
+};
+// Reset player position
+Player.prototype.reset = function() {
+    this.x = constants.PLAYER_START_X;
+    this.y = constants.PLAYER_START_Y;
+};
+// Player hit. Called when the player collides with an enemy
+Player.prototype.hit = function() {
+    this.x = constants.PLAYER_START_X;
+    this.y = constants.PLAYER_START_Y;
+    $("#collision").show().fadeOut();
+};
+/* Update player lives
+ * Method takes two arguments. The action, which can be either 
+ * add or remove and the value which indicates the the number 
+ * of lives to add or remove. After adding/removing a life,
+ * update the stats.
+ */
+Player.prototype.updateLives = function(action, value) {
+
+    // Add a life
+    if (action === "add") {
+        this.lives = this.lives + value;
+    }
+    // Remove a life
+    if (action === "remove") {
+        this.lives = this.lives - value;
+    }
+    // Update the lives stats
+    stats.updateLives(this.lives);
+
+};
+// Draw the player on the canvas
+Player.prototype.render = function() {
+    ctx.drawImage(Resources.get(this.sprite), this.x, this.y);
+};
+// Handle the left, up, right & down keyboard arrow keys
+Player.prototype.handleInput = function(key) {
+
+    /* If the left arrow key is pressed and the 
+     * player is within the left boundary of the
+     * canvas, allow the player to go move left.
+     */
+    if (key === 'left' && this.x != constants.LEFT_BOUNDARY) {
+        this.x = this.xNow + -constants.PLAYER_MOVEMENT;
+    }
+    /* If the up arrow key is pressed and the 
+     * player is within the top boundary of the
+     * canvas, allow the player to move upwards.
+     */
+    if (key === 'up' && this.y != constants.TOP_BOUNDARY) {
+        this.y = this.yNow + -constants.PLAYER_MOVEMENT;
+    }
+    /* If the right arrow key is pressed and the 
+     * player is within the right boundary of the
+     * canvas, allow the player to move right.
+     */
+    if (key === 'right' && this.x != constants.RIGHT_BOUNDARY) {
+        this.x = this.xNow + constants.PLAYER_MOVEMENT;
+    }
+    /* If the down arrow key is pressed and the 
+     * player is within the bottom boundary of the
+     * canvas, allow the player to move down.
+     */
+    if (key === 'down' && this.y != constants.BOTTOM_BOUNDARY) {
+        this.y = this.yNow + constants.PLAYER_MOVEMENT;
+    }
+
+};
+
+// Instantiate new Player object
+var player = new Player();
+
+
+/* Level Class
+ * This class is responsible for keeping track of and reseting the level.
+ */
+var Level = function() {
+    this.level = 1;
+    enemies.spawn(2);
+    gems.spawn(2);
+    hearts.spawn(1);
+};
+/* Update the level: 
+ * - increase level
+ * - spawn enemies
+ * - reset collectable gems
+ * - reset collectable hearts
+ * - spawn a random amount of collectable gems and hearts
+ * - reset player position 
+ * - update level stat
+ * - update the score
+ */
+Level.prototype.update = function() {
+    this.level++;
+    // Spawn enemies when the modulo is not 0
+    if (this.level % 2) {
+        enemies.spawn(5);
+    }
+    gems.reset();
+    gems.spawn(getRandomInt(2, 4));
+    hearts.reset();
+    // spawn a heart every 3 levels completed
+    if (this.level % 3 === 0) {
+        hearts.spawn(1);
+    }
+
+    player.reset();
+    stats.updateLevel(this.level);
+    stats.updateScore();
+};
+/* Reset the level:
+ * - reset to level 1 
+ * - reset player
+ * - reset enemies
+ * - reset gem
+ * - reset hearts
+ * - reset stats 
+ * - update player lives
+ * - spawn enemies
+ * - pause the game to prevent player movement
+ * - show game over screen
+ */
+Level.prototype.reset = function() {
+    this.level = 1;
+    player.reset();
+    enemies.reset();
+    gem.reset();
+    heart.reset();
+    stats.reset();
+    player.updateLives('add', 2);
+    enemies.spawn(2);
+    paused = true;
+    $("#gameOver").show();
+};
+
+// Instantiate a new level object
+var level = new Level();
+
+
+/* Stats Class
+ * This class is responsible for rendering, updating and reseting the game statisitcs,
+ * namely the current level and score.
+ */
+var Stats = function() {
+    this.font = constants.FONT;
+    this.fontColor = constants.FONT_COLOR;
+    this.currentLevel = level.level;
+    this.currentLives = player.lives;
+    this.currentScore = 0;
+    this.currentGems = 0;
+};
+// Render the stat bar, level text, score text, lives count and gems count
+Stats.prototype.render = function() {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 50, 707, 45);
+    this.level();
+    this.score();
+    this.lives();
+    this.gems();
+};
+// Level text
+Stats.prototype.level = function() {
+    ctx.font = this.font;
+    ctx.fillStyle = this.fontColor;
+    ctx.textAlign = 'start';
+    ctx.fillText('Level ' + this.currentLevel, 10, 82);
+};
+// Update level
+Stats.prototype.updateLevel = function(level) {
+    this.currentLevel = level;
+};
+// Score text
+Stats.prototype.score = function() {
+    ctx.font = this.font;
+    ctx.fillStyle = this.fontColor;
+    ctx.textAlign = 'end';
+    ctx.fillText(this.currentScore, 700, 82);
+};
+// Update score stat
+Stats.prototype.updateScore = function() {
+    this.currentScore = this.currentScore + 10;
+};
+// Lives icon & text
+Stats.prototype.lives = function() {
+    ctx.drawImage(Resources.get('images/stat-heart.png'), 425, 62);
+    ctx.font = this.font;
+    ctx.fontStyle = this.fontColor;
+    ctx.textAlign = 'start';
+    ctx.fillText('x ' + this.currentLives, 460, 82);
+};
+// Update lives stat
+Stats.prototype.updateLives = function(lives) {
+    this.currentLives = lives;
+};
+// Gems icon & text
+Stats.prototype.gems = function() {
+    ctx.drawImage(Resources.get('images/stat-gem.png'), 330, 62);
+    ctx.font = this.font;
+    ctx.fontStyle = this.fontColor;
+    ctx.textAlign = 'start';
+    ctx.fillText('x ' + this.currentGems, 360, 82);
+};
+// Update gem stat
+Stats.prototype.updateGems = function() {
+    this.currentGems++;
+    this.currentScore = this.currentScore + 5;
+};
+// Reset stats
+Stats.prototype.reset = function() {
+    $("#gameOver #score").html(this.currentScore);
+    this.currentScore = 0;
+    this.currentGems = 0;
+    this.currentLevel = level.level;
+};
+
+// Instatiate a new Stats object
+var stats = new Stats();
+
+
+// Helper Functions
+
+/* Listen for key presses.
+ * Sent to the player method handleInput.
+ */
+document.addEventListener('keydown', function(e) {
+    var allowedKeys = {
+        37: 'left',
+        38: 'up',
+        39: 'right',
+        40: 'down'
+    };
+
+    player.handleInput(allowedKeys[e.keyCode]);
+});
+
+/* Returns a random integer. 
+ * Accepts two arguments, a minimum and maximum number.
+ */
+function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1) + min);
+}
+
+/* Returns a console log.
+ * Takes one or more expressions as parameters.
+ * Just to make logging to the console that much more simple :)
+ */
+function log(log) {
+    return console.log(log);
+}
